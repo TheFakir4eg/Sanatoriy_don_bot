@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from aiogram.filters import CommandStart
 from dotenv import load_dotenv
 
@@ -10,12 +10,39 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
+# Пути к файлам
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Определяем корневую папку проекта
+FILES_DIR = os.path.join(BASE_DIR, "Files")  # Путь к папке files
+
+spa_services_PDF_FILE_PATH = os.path.join(FILES_DIR, "spa_services.pdf")  # PDF-файл
+THUMBNAIL_PATH = os.path.join(FILES_DIR, "spa_services_preview.jpg")  # Миниатюра
+
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
 # Инициализируем бота и диспетчер
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+# Функция отправки PDF-файла с предпросмотром
+async def send_pdf_spa_services(callback: types.CallbackQuery):
+    try:
+        pdf_file = FSInputFile(spa_services_PDF_FILE_PATH)
+        thumb_file = FSInputFile(THUMBNAIL_PATH) if os.path.exists(THUMBNAIL_PATH) else None
+
+        await bot.send_document(
+            chat_id=callback.message.chat.id,
+            document=pdf_file,
+            caption="Меню СПА",
+            thumbnail=thumb_file
+        )
+        await callback.answer("Файл отправлен!")
+    except FileNotFoundError:
+        await callback.answer("Ошибка: файл не найден.")
+    except Exception as e:
+        logging.error(f"Ошибка при отправке PDF: {e}", exc_info=True)
+        await callback.answer("Произошла ошибка при отправке файла.")
+
 
 # Функция для создания главного меню
 def get_main_keyboard():
@@ -90,7 +117,7 @@ def get_submenu_loyalty():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Зарегистрироваться", url="https://loyalty.donresort.ru/")],
         [InlineKeyboardButton(text="Привилегии участников программы", callback_data='loyality_privileges')],
-        [InlineKeyboardButton(text="Правила участия в программе лояльности", callback_data='loyality_rules')],
+        [InlineKeyboardButton(text="📄 Правила участия в программе лояльности", callback_data='loyality_rules')],
         [InlineKeyboardButton(text="Назад", callback_data="back")]
     ])
     return keyboard
@@ -116,7 +143,9 @@ async def callback_handler(callback: types.CallbackQuery):
         await callback.message.edit_text("Выберите опцию:", reply_markup=get_submenu_loyalty()) 
     # обработка меню Проживание    
     elif callback.data == "tech_problem":
-        await callback.message.edit_text("Выберите опцию:", reply_markup=get_submenu_tech_problem())           
+        await callback.message.edit_text("Выберите опцию:", reply_markup=get_submenu_tech_problem())  
+    elif callback.data == "spa_menu_check":
+        await send_pdf_spa_services(callback)         
     elif callback.data == "sub1_1":
         await callback.message.answer("Вы выбрали Опция 1.1")
     elif callback.data == "sub1_2":
